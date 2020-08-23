@@ -1,0 +1,12 @@
+project:
+  name: lab1-central-ips-ids
+
+tests:
+  lab1-test:
+    template: templates/vpc.yml
+    regions:
+      - "us-east-1"
+    parameters:
+      pJoeyIp: "100.100.100.100"
+      pJoeyHomePsk: "totallybogus"
+      pSsmInstanceProfile: $[taskcat_random-string]
