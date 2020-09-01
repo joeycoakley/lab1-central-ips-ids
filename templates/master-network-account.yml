@@ -123,7 +123,7 @@ Resources:
         - !GetAZs 
           Ref: 'AWS::Region'
       VpcId: !Ref rVPC
-      CidrBlock: 10.0.0.72/28
+      CidrBlock: 10.0.0.80/28
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-UnTrustedSubnetB
