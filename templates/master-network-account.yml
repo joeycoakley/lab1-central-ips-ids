@@ -1,0 +1,254 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: ---
+
+# Parameters: 
+
+# Mappings: 
+
+# Conditions: 
+
+Resources: 
+  rVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-VPC
+
+  rTransitSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref rVPC
+      CidrBlock: 10.0.0.0/28
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-TransitSubnetA
+
+  rTransitSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref rVPC
+      CidrBlock: 10.0.0.16/28
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-TransitSubnetB
+
+  rTransitNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-TransitSubnetNACL
+
+  rTransitSubnetANaclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      NetworkAclId: !Ref rTransitNACL
+      SubnetId: !Ref rTransitSubnetA
+
+  rTransitSubnetBNaclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      NetworkAclId: !Ref rTransitNACL
+      SubnetId: !Ref rTransitSubnetB
+
+  rIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-IGW
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref rVPC
+      InternetGatewayId: !Ref rIGW
+
+  rTrustSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref rVPC
+      CidrBlock: 10.0.0.32/28
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-TrustedSubnetA
+
+  rTrustSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref rVPC
+      CidrBlock: 10.0.0.48/28
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-TrustedSubnetB
+
+  rUnTrustSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref rVPC
+      CidrBlock: 10.0.0.64/28
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-UnTrustedSubnetA
+
+  rUnTrustSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref rVPC
+      CidrBlock: 10.0.0.72/28
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-UnTrustedSubnetB
+
+  rManagementSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 2
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref rVPC
+      CidrBlock: 10.0.255.0/28
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ManagementSubnet
+
+  rManagementRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Management-RT     
+
+  rUnTrustART:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-UnTrust-A-RT
+
+  rUnTrustBRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-UnTrust-B-RT
+
+  rTrustART:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Trust-A-RT
+
+  rTrustBRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Trust-B-RT
+
+  rTransitART:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Transit-A-RT
+
+  rTransitBRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Transit-B-RT
+
+  rTransitASubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rTransitART
+      SubnetId: !Ref rTransitSubnetA
+
+  rTransitBSubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rTransitBRT
+      SubnetId: !Ref rTransitSubnetB
+
+  rUnTrustASubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rUnTrustART
+      SubnetId: !Ref rUnTrustSubnetA
+
+  rUnTrustBSubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rUnTrustBRT
+      SubnetId: !Ref rUnTrustSubnetB
+  
+  rTrustASubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rTrustART
+      SubnetId: !Ref rTrustSubnetA
+
+  rTrustBSubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rTrustBRT
+      SubnetId: !Ref rTrustSubnetB
+
+  rManagementSubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref rManagementRT
+      SubnetId: !Ref rManagementSubnet
+
+  rUntrustADefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref rIGW
+      RouteTableId: !Ref rUnTrustART
+
+  rUntrustBDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref rIGW
+      RouteTableId: !Ref rUnTrustBRT
