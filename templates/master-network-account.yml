@@ -252,3 +252,46 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref rIGW
       RouteTableId: !Ref rUnTrustBRT
+
+  rTGW:
+    Type: AWS::EC2::TransitGateway
+    Properties:
+      DnsSupport: enable
+      VpnEcmpSupport: enable
+      AutoAcceptSharedAttachments: enable
+      DefaultRouteTableAssociation: disable
+      DefaultRouteTablePropagation: disable
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-TGW
+
+  rTGWAttach:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties:
+      TransitGatewayId: !Ref rTGW
+      VpcId: !Ref rVPC
+      SubnetIds:
+        - !Ref rTransitSubnetA
+        - !Ref rTransitSubnetB
+
+  rTGWRouteTableOutside:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      TransitGatewayId: !Ref rTGW
+
+  rTGWRouteTableInside:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      TransitGatewayId: !Ref rTGW
+
+  rTGWRouteEgress:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      TransitGatewayRouteTableId: !Ref rTGWRouteTableOutside
+      DestinationCidrBlock: 0.0.0.0/0
+
+  rTGWRouteEgressPropagation:
+    Type: AWS::EC2::TransitGatewayRouteTablePropagation
+    Properties:
+      TransitGatewayRouteTableId: !Ref rTGWRouteTableInside
+      TransitGatewayAttachmentId: !Ref rTGWAttach
