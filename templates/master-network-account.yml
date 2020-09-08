@@ -2,7 +2,19 @@ AWSTemplateFormatVersion: 2010-09-09
 
 Description: ---
 
-# Parameters: 
+Parameters:
+  AWSOrganizationId:
+    Type: String
+    Description: AWS Organization ID to share the resources with. Obtain from 'aws organizations describe-organization'
+    Default: o-5jfmdvb7mm
+    MinLength: 12
+    MaxLength: 12
+  MasterAccountId:
+    Type: String
+    Description: Account ID of the Control Tower Master
+    Default: 663281515832
+    MinLength: 12
+    MaxLength: 12
 
 # Mappings: 
 
@@ -308,7 +320,9 @@ Resources:
     Properties:
       Name: "Master Network Account TGW"
       ResourceArns:
-        - "arn:aws:ram:us-east-1:256060500942:resource-share/447674e4-bd44-4dfc-88fe-51136fc65891"
+        - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/${myTransitGateway}"
+      Principals:
+        - !Sub "arn:aws:organizations::${MasterAccountId}:organization/${AWSOrganizationId}"
 
   rMiddleboxENISG:
     Type: AWS::EC2::SecurityGroup
