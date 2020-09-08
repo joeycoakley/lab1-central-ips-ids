@@ -320,7 +320,7 @@ Resources:
     Properties:
       Name: "Master Network Account TGW"
       ResourceArns:
-        - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/${myTransitGateway}"
+        - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/${rTGW}"
       Principals:
         - !Sub "arn:aws:organizations::${MasterAccountId}:organization/${AWSOrganizationId}"
 
