@@ -308,7 +308,7 @@ Resources:
     Properties:
       Name: "Master Network Account TGW"
       ResourceArns:
-        - arn:aws:ram:us-east-1:256060500942:resource-share/447674e4-bd44-4dfc-88fe-51136fc65891 #Parameterize
+        - "arn:aws:ram:us-east-1:256060500942:resource-share/447674e4-bd44-4dfc-88fe-51136fc65891"
 
   rMiddleboxENISG:
     Type: AWS::EC2::SecurityGroup
