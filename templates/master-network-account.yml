@@ -291,8 +291,59 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       TransitGatewayAttachmentId: !Ref rTGWAttach
 
+  rTGWAssociate:
+    Type: AWS::EC2::TransitGatewayRouteTableAssociation
+    Properties:
+      TransitGatewayAttachmentId: !Ref rTGWAttach
+      TransitGatewayRouteTableId: !Ref rTGWRouteTableInside
+
   rTGWRouteEgressPropagation:
     Type: AWS::EC2::TransitGatewayRouteTablePropagation
     Properties:
       TransitGatewayRouteTableId: !Ref rTGWRouteTableInside
       TransitGatewayAttachmentId: !Ref rTGWAttach
+
+  rTGWShare:
+    Type: AWS::RAM::ResourceShare
+    Properties:
+      Name: "Master Network Account TGW"
+      ResourceArns:
+        - arn:aws:ram:us-east-1:256060500942:resource-share/447674e4-bd44-4dfc-88fe-51136fc65891 #Parameterize
+
+  rMiddleboxENISG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow all traffic to the middlebox ENI
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-MiddleboxENI-SG
+
+
+  rMiddleboxENI:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: Used for inbound routing from internet to middlebox for inspection
+      SourceDestCheck: false
+      SubnetId: !Ref rUnTrustSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-MiddleboxENI
+
+  rIngressRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC
+
+  rIGWEdgeAssociation:
+    Type: AWS::EC2::GatewayRouteTableAssociation
+    Properties:
+      GatewayId: !Ref rIGW
+      RouteTableId: !Ref rIngressRT
+
+  rGWRTInboundRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.0.0.0/8
+      NetworkInterfaceId: !Ref rMiddleboxENI
+      RouteTableId: !Ref rIngressRT
