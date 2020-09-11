@@ -356,6 +356,73 @@ Resources:
       GatewayId: !Ref rIGW
       RouteTableId: !Ref rIngressRT
 
+  rUpdateLocalRouteRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: /
+      Policies:
+        - PolicyName: UpdateRouteLambdaExecutionRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ec2:ReplaceRoute
+                Resource: 
+                  !Join
+                    - ":"
+                    - - 'arn:aws:ec2'
+                      - ! Ref AWS::Region
+                      - ! Ref AWS::AccountId
+                      - route-table/
+                      - !Ref rIngressRT              
+
+  rUpdateLocalRouteLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          from botocore.exceptions import ClientError
+
+          ec2 = boto3.resource('ec2')
+
+          def lambda_handler(event, context):
+              print(json.dumps(event))
+
+              route_table_id = event['ResourceProperties']['route_table_id']
+              destination_cidr_block = ['ResourceProperties']['cidr']
+              destination = ['ResourceProperties']['destination']
+              
+              try:
+                  route = ec2.Route(route_table_id, destination_cidr_block)
+              except ClientError as e:
+                  print("Could not find the route given route table id: {} with destination cidr: {}".format(route_table_id, destination_cidr_block))
+              
+              try:
+                  response = route.replace(NetworkInterfaceId=destination)
+              except ClientError as e:
+                  print("""Route update failed using the following parameters: \n
+                        Route Table Id: {}\n
+                        Destination CIDR Block: {}\n
+                        Network Interface: {}.
+                        """.format(route_table_id, destination_cidr_block, destination)
+                  
+              print("UpdateRoute Function Complete")
+      Role: !GetAtt rUpdateLocalRouteRole.Arn
+      Timeout: 60
+      Runtime: python3.8
+      Handler: lambda_function.lambda_handler 
 
   rUpdateLocalRoute:
     Type: Custom::RouteUpdate
