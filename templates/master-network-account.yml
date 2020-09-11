@@ -397,36 +397,43 @@ Resources:
         ZipFile: |
           import json
           import boto3
+          import logging
+          import cfnresponse
           from botocore.exceptions import ClientError
 
           ec2 = boto3.resource('ec2')
 
           def lambda_handler(event, context):
-              print(json.dumps(event))
+              responseData = {}
+              logger = logging.getLogger()
+              logger.setLevel(logging.INFO)
+              logger.info(json.dumps(event))
 
-              route_table_id = event['ResourceProperties']['route_table_id']
-              destination_cidr_block = ['ResourceProperties']['cidr']
-              destination = ['ResourceProperties']['destination']
-              
               try:
+                  if event['RequestType'] == 'Delete':
+                      logger.info('Deleted!')
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+                      return
+
+                  route_table_id = event['ResourceProperties']['route_table_id']
+                  destination_cidr_block = ['ResourceProperties']['cidr']
+                  destination = ['ResourceProperties']['destination']
+              
+
                   route = ec2.Route(route_table_id, destination_cidr_block)
-              except ClientError as e:
-                  print("Could not find the route given route table id: {} with destination cidr: {}".format(route_table_id, destination_cidr_block))
-              
-              try:
-                  response = route.replace(NetworkInterfaceId=destination)
-              except ClientError as e:
-                  print("""Route update failed using the following parameters: \n
-                        Route Table Id: {}\n
-                        Destination CIDR Block: {}\n
-                        Network Interface: {}.
-                        """.format(route_table_id, destination_cidr_block, destination)
-                  
-              print("UpdateRoute Function Complete")
+                  logger.info("Route Found")
+
+                  route.replace(NetworkInterfaceId=destination)
+                  logger.info("Route Updated")
+              except Exception:
+                  logger.exception('Signaling Failure to CloudFormation')
+                  cfnresponse.send(event, context, cfnresponse.FAILED, responseData)
+
+
       Role: !GetAtt rUpdateLocalRouteRole.Arn
-      Timeout: 60
+      Timeout: 5
       Runtime: python3.7
-      Handler: lambda_function.lambda_handler 
+      Handler: index.lambda_handler 
 
   rUpdateLocalRoute:
     Type: Custom::RouteUpdate
