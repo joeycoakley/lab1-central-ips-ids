@@ -348,7 +348,9 @@ Resources:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref rVPC
-
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Ingress Route Table
       
   rIGWEdgeAssociation:
     Type: AWS::EC2::GatewayRouteTableAssociation
@@ -384,12 +386,7 @@ Resources:
                     - !Ref 'AWS::AccountId'
                     - ':route-table/'
                     - !Ref rIngressRT
-                  # !Join
-                  #   - ""
-                  #   - - !Sub arn:aws:ec2:{$AWS::Region}:{$AWS::AccountId}:route-table/
-                  #     - !Ref rIngressRT
-          
-
+         
   rUpdateLocalRouteLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -416,8 +413,8 @@ Resources:
                       return
 
                   route_table_id = event['ResourceProperties']['route_table_id']
-                  destination_cidr_block = ['ResourceProperties']['destination_cidr_block']
-                  destination = ['ResourceProperties']['destination']
+                  destination_cidr_block = event['ResourceProperties']['destination_cidr_block']
+                  destination = event['ResourceProperties']['destination']
               
 
                   route = ec2.Route(route_table_id, destination_cidr_block)
@@ -425,6 +422,7 @@ Resources:
 
                   route.replace(NetworkInterfaceId=destination)
                   logger.info("Route Updated")
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
               except Exception:
                   logger.exception('Signaling Failure to CloudFormation')
                   cfnresponse.send(event, context, cfnresponse.FAILED, responseData)
