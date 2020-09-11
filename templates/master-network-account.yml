@@ -2,7 +2,19 @@ AWSTemplateFormatVersion: 2010-09-09
 
 Description: ---
 
-# Parameters: 
+Parameters:
+  AWSOrganizationId:
+    Type: String
+    Description: AWS Organization ID to share the resources with. Obtain from 'aws organizations describe-organization'
+    Default: o-5jfmdvb7mm
+    MinLength: 12
+    MaxLength: 12
+  MasterAccountId:
+    Type: String
+    Description: Account ID of the Control Tower Master
+    Default: 663281515832
+    MinLength: 12
+    MaxLength: 12
 
 # Mappings: 
 
@@ -291,8 +303,156 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       TransitGatewayAttachmentId: !Ref rTGWAttach
 
+  rTGWAssociate:
+    Type: AWS::EC2::TransitGatewayRouteTableAssociation
+    Properties:
+      TransitGatewayAttachmentId: !Ref rTGWAttach
+      TransitGatewayRouteTableId: !Ref rTGWRouteTableInside
+
   rTGWRouteEgressPropagation:
     Type: AWS::EC2::TransitGatewayRouteTablePropagation
     Properties:
       TransitGatewayRouteTableId: !Ref rTGWRouteTableInside
       TransitGatewayAttachmentId: !Ref rTGWAttach
+
+  rTGWShare:
+    Type: AWS::RAM::ResourceShare
+    Properties:
+      Name: "Master Network Account TGW"
+      ResourceArns:
+        - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/${rTGW}"
+      Principals:
+        - !Sub "arn:aws:organizations::${MasterAccountId}:organization/${AWSOrganizationId}"
+
+  rMiddleboxENISG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow all traffic to the middlebox ENI
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-MiddleboxENI-SG
+
+
+  rMiddleboxENI:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: Used for inbound routing from internet to middlebox for inspection
+      SourceDestCheck: false
+      SubnetId: !Ref rUnTrustSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-MiddleboxENI
+
+  rIngressRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Ingress Route Table
+      
+  rIGWEdgeAssociation:
+    Type: AWS::EC2::GatewayRouteTableAssociation
+    Properties:
+      GatewayId: !Ref rIGW
+      RouteTableId: !Ref rIngressRT
+
+  rUpdateLocalRouteRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Path: /
+      Policies:
+        - PolicyName: UpdateRouteLambdaExecutionRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ec2:ReplaceRoute
+                Resource: !Join
+                  - ''
+                  - - 'arn:aws:ec2:'
+                    - !Ref 'AWS::Region'
+                    - ':'
+                    - !Ref 'AWS::AccountId'
+                    - ':route-table/'
+                    - !Ref rIngressRT
+         
+  rUpdateLocalRouteLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import logging
+          import cfnresponse
+          from botocore.exceptions import ClientError
+
+          ec2 = boto3.resource('ec2')
+
+          def lambda_handler(event, context):
+              responseData = {}
+              logger = logging.getLogger()
+              logger.setLevel(logging.INFO)
+              logger.info(json.dumps(event))
+
+              try:
+                  if event['RequestType'] == 'Delete':
+                      logger.info('Deleted!')
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+                      return
+
+                  route_table_id = event['ResourceProperties']['route_table_id']
+                  destination_cidr_block = event['ResourceProperties']['destination_cidr_block']
+                  destination = event['ResourceProperties']['destination']
+              
+
+                  route = ec2.Route(route_table_id, destination_cidr_block)
+                  logger.info("Route Found")
+
+                  route.replace(NetworkInterfaceId=destination)
+                  logger.info("Route Updated")
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+              except Exception:
+                  logger.exception('Signaling Failure to CloudFormation')
+                  cfnresponse.send(event, context, cfnresponse.FAILED, responseData)
+
+
+      Role: !GetAtt rUpdateLocalRouteRole.Arn
+      Timeout: 5
+      Runtime: python3.7
+      Handler: index.lambda_handler 
+
+  rUpdateLocalRoute:
+    Type: Custom::RouteUpdate
+    Properties:
+        ServiceToken: !GetAtt rUpdateLocalRouteLambda.Arn
+        route_table_id: !Ref rIngressRT
+        destination_cidr_block: !GetAtt rVPC.CidrBlock
+        destination: !Ref rMiddleboxENI
+
+  # rGWRTInboundRoute1:
+  #   Type: AWS::EC2::Route
+  #   Properties:
+  #     DestinationCidrBlock: 10.0.0.0/17
+  #     NetworkInterfaceId: !Ref rMiddleboxENI
+  #     RouteTableId: !Ref rIngressRT
+
+
+  # rGWRTInboundRoute2:
+  #   Type: AWS::EC2::Route
+  #   Properties:
+  #     DestinationCidrBlock: 10.0.128.0/17
+  #     NetworkInterfaceId: !Ref rMiddleboxENI
+  #     RouteTableId: !Ref rIngressRT
+      
