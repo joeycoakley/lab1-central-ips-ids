@@ -438,7 +438,7 @@ Resources:
   rUpdateLocalRoute:
     Type: Custom::RouteUpdate
     Properties:
-        ServiceToken: !Ref rUpdateLocalRouteLambda
+        ServiceToken: !GetAtt rUpdateLocalRouteLambda.Arn
         route_table_id: !Ref rIngressRT
         destination_cidr_block: !GetAtt rVPC.CidrBlock
         destination: !Ref rMiddleboxENI
