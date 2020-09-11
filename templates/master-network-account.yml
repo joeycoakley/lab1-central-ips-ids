@@ -376,11 +376,11 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: ec2:ReplaceRoute
-                Resource: 
-                  !Join
-                    - ""
-                    - - !Sub arn:aws:ec2:{$AWS::Region}:{$AWS::AccountId}:route-table/
-                      - !Ref rIngressRT
+                Resource: '*'
+                  # !Join
+                  #   - ""
+                  #   - - !Sub arn:aws:ec2:{$AWS::Region}:{$AWS::AccountId}:route-table/
+                  #     - !Ref rIngressRT
           
 
   rUpdateLocalRouteLambda:
