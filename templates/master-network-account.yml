@@ -349,22 +349,34 @@ Resources:
     Properties:
       VpcId: !Ref rVPC
 
+      
   rIGWEdgeAssociation:
     Type: AWS::EC2::GatewayRouteTableAssociation
     Properties:
       GatewayId: !Ref rIGW
       RouteTableId: !Ref rIngressRT
 
-  rGWRTInboundRoute1:
-    Type: AWS::EC2::Route
-    Properties:
-      DestinationCidrBlock: 10.0.0.0/17
-      NetworkInterfaceId: !Ref rMiddleboxENI
-      RouteTableId: !Ref rIngressRT
 
-  rGWRTInboundRoute2:
-    Type: AWS::EC2::Route
+  rUpdateLocalRoute:
+    Type: Custom::RouteUpdate
     Properties:
-      DestinationCidrBlock: 10.0.128.0/17
-      NetworkInterfaceId: !Ref rMiddleboxENI
-      RouteTableId: !Ref rIngressRT
+        ServiceToken: arn:aws:lambda:us-east-1:256060500942:function:UpdateLocalRoute
+        route_table_id: !Ref rIngressRT
+        destination_cidr_block: !GetAtt rVPC.CidrBlock
+        destination: !Ref rMiddleboxENI
+
+  # rGWRTInboundRoute1:
+  #   Type: AWS::EC2::Route
+  #   Properties:
+  #     DestinationCidrBlock: 10.0.0.0/17
+  #     NetworkInterfaceId: !Ref rMiddleboxENI
+  #     RouteTableId: !Ref rIngressRT
+
+
+  # rGWRTInboundRoute2:
+  #   Type: AWS::EC2::Route
+  #   Properties:
+  #     DestinationCidrBlock: 10.0.128.0/17
+  #     NetworkInterfaceId: !Ref rMiddleboxENI
+  #     RouteTableId: !Ref rIngressRT
+      
