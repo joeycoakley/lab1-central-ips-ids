@@ -416,7 +416,7 @@ Resources:
                       return
 
                   route_table_id = event['ResourceProperties']['route_table_id']
-                  destination_cidr_block = ['ResourceProperties']['cidr']
+                  destination_cidr_block = ['ResourceProperties']['destination_cidr_block']
                   destination = ['ResourceProperties']['destination']
               
 
@@ -438,7 +438,7 @@ Resources:
   rUpdateLocalRoute:
     Type: Custom::RouteUpdate
     Properties:
-        ServiceToken: !GetAtt rUpdateLocalRouteLambda.Arn
+        ServiceToken: !GetAtt rUpdateLocalRouteLambda
         route_table_id: !Ref rIngressRT
         destination_cidr_block: !GetAtt rVPC.CidrBlock
         destination: !Ref rMiddleboxENI
