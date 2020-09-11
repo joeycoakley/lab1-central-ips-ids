@@ -364,8 +364,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service:
-                - lambda.amazonaws.com
+              Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
@@ -379,12 +378,10 @@ Resources:
                 Action: ec2:ReplaceRoute
                 Resource: 
                   !Join
-                    - ":"
-                    - - 'arn:aws:ec2'
-                      - ! Ref AWS::Region
-                      - ! Ref AWS::AccountId
-                      - route-table/
-                      - !Ref rIngressRT              
+                    - ""
+                    - - !Sub arn:aws:ec2:{$AWS::Region}:{$AWS::AccountId}:route-table/
+                      - !Ref rIngressRT
+          
 
   rUpdateLocalRouteLambda:
     Type: AWS::Lambda::Function
