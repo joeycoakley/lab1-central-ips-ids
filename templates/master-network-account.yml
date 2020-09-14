@@ -15,6 +15,15 @@ Parameters:
     Default: 663281515832
     MinLength: 12
     MaxLength: 12
+  MgmtAllowedIP:
+    Type: String
+    AllowedPattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$'
+    Description: CIDR that is allowed to RDP into Bastion Host for management
+  LatestAMIforBastion:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-Base'
+
+
 
 # Mappings: 
 
@@ -23,6 +32,11 @@ Parameters:
 Resources: 
   rVPC:
     Type: AWS::EC2::VPC
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W60
+            reason: "Lab template. Not for production use"
     Properties:
       CidrBlock: 10.0.0.0/16
       EnableDnsSupport: true
@@ -140,27 +154,6 @@ Resources:
         - Key: Name
           Value: !Sub ${AWS::StackName}-UnTrustedSubnetB
 
-  rManagementSubnet:
-    Type: AWS::EC2::Subnet
-    Properties:
-      AvailabilityZone: !Select 
-        - 2
-        - !GetAZs 
-          Ref: 'AWS::Region'
-      VpcId: !Ref rVPC
-      CidrBlock: 10.0.255.0/28
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-ManagementSubnet
-
-  rManagementRT:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref rVPC
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-Management-RT     
-
   rUnTrustART:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -245,12 +238,6 @@ Resources:
       RouteTableId: !Ref rTrustBRT
       SubnetId: !Ref rTrustSubnetB
 
-  rManagementSubAssoc:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref rManagementRT
-      SubnetId: !Ref rManagementSubnet
-
   rUntrustADefaultRoute:
     Type: AWS::EC2::Route
     Properties:
@@ -315,6 +302,8 @@ Resources:
       TransitGatewayRouteTableId: !Ref rTGWRouteTableInside
       TransitGatewayAttachmentId: !Ref rTGWAttach
 
+  
+
   rTGWShare:
     Type: AWS::RAM::ResourceShare
     Properties:
@@ -326,8 +315,33 @@ Resources:
 
   rMiddleboxENISG:
     Type: AWS::EC2::SecurityGroup
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W5
+            reason: "This Security Group is placed on the firewall, which should be determining allow/deny rules."
+          - id: W29
+            reason: "This Security Group is placed on the firewall, which should be determining allow/deny rules."
+          - id: W9
+            reason: "This Security Group is placed on the firewall, which should be determining allow/deny rules."
+          - id: W2
+            reason: "This Security Group is placed on the firewall, which should be determining allow/deny rules."
+          - id: W27
+            reason: "This Security Group is placed on the firewall, which should be determining allow/deny rules."
+          - id: W36
+            reason: "This Security Group is placed on the firewall, which should be determining allow/deny rules."
     Properties:
       GroupDescription: Allow all traffic to the middlebox ENI
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 1
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 1
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
       VpcId: !Ref rVPC
       Tags:
         - Key: Name
@@ -441,18 +455,100 @@ Resources:
         destination_cidr_block: !GetAtt rVPC.CidrBlock
         destination: !Ref rMiddleboxENI
 
-  # rGWRTInboundRoute1:
-  #   Type: AWS::EC2::Route
-  #   Properties:
-  #     DestinationCidrBlock: 10.0.0.0/17
-  #     NetworkInterfaceId: !Ref rMiddleboxENI
-  #     RouteTableId: !Ref rIngressRT
+############## Bastion Setup ###################
 
+  rManagementVPC:
+    Type: AWS::EC2::VPC
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W60
+            reason: "Lab template. Not for production use"
+    Properties:
+      CidrBlock: 10.255.0.0/16
+      EnableDnsHostnames: True
+      EnableDnsSupport: True
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ManagementVPC
 
-  # rGWRTInboundRoute2:
-  #   Type: AWS::EC2::Route
-  #   Properties:
-  #     DestinationCidrBlock: 10.0.128.0/17
-  #     NetworkInterfaceId: !Ref rMiddleboxENI
-  #     RouteTableId: !Ref rIngressRT
-      
+  rManagementRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref rManagementVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ManagementRT
+
+  rManagementSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref rManagementVPC
+      CidrBlock: 10.255.255.0/28
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ManagementSubnet
+
+  rManagementDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref rManagementRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref rManagementIGW
+
+  rManagementIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ManagementIGW
+  rMgmtAttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref rManagementVPC
+      InternetGatewayId: !Ref rManagementIGW
+
+  rManagementSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref rManagementSubnet
+      RouteTableId: !Ref rManagementRT
+
+  rManagementSG:
+    Type: AWS::EC2::SecurityGroup
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W57
+            reason: "Permit traffic "
+    Properties:
+      GroupDescription: Allows RDP access from trusted sources
+      VpcId: !Ref rManagementVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: !Ref MgmtAllowedIP
+          Description: Allows RDP from trusted IP
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 1
+          ToPort: 1
+          CidrIp: !Ref MgmtAllowedIP
+          Description: No Egress
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Management SG
+
+  rManagementHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref LatestAMIforBastion
+      SubnetId: !Ref rManagementSubnet
+      SecurityGroupIds:
+        - !GetAtt rManagementSG.GroupId
