@@ -22,6 +22,10 @@ Parameters:
   LatestAMIforBastion:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-Base'
+  KeyName:
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: Must be the name of an existing EC2 Keypair
+    Default: mna
 
 
 
@@ -552,3 +556,4 @@ Resources:
       SubnetId: !Ref rManagementSubnet
       SecurityGroupIds:
         - !GetAtt rManagementSG.GroupId
+      KeyName: !Ref KeyName
