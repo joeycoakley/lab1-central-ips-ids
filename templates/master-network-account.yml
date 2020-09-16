@@ -250,26 +250,7 @@ Resources:
       GatewayId: !Ref rIGW
       RouteTableId: !Ref rUnTrustART
 
-  rUntrustAtoManagementRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      DestinationCidrBlock: 10.255.0.0/16
-      TransitGatewayId: !Ref rTGW
-      RouteTableId: !Ref rUnTrustART
 
-  rUntrustBDefaultRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref rIGW
-      RouteTableId: !Ref rUnTrustBRT
-
-  rUntrustBtoManagementRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      DestinationCidrBlock: 10.255.0.0/16
-      TransitGatewayId: !Ref rTGW
-      RouteTableId: !Ref rUnTrustBRT
 
 ############################ Transit Gateway Section - Begin ###################################
 
@@ -386,6 +367,27 @@ Resources:
         - !Sub "arn:aws:organizations::${MasterAccountId}:organization/${AWSOrganizationId}"
 
 ############################ Transit Gateway Section - End ###################################
+
+  rUntrustAtoManagementRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.255.0.0/16
+      TransitGatewayId: !Ref rTGW
+      RouteTableId: !Ref rUnTrustART
+
+  rUntrustBDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref rIGW
+      RouteTableId: !Ref rUnTrustBRT
+
+  rUntrustBtoManagementRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.255.0.0/16
+      TransitGatewayId: !Ref rTGW
+      RouteTableId: !Ref rUnTrustBRT
 
   rMiddleboxENISG:
     Type: AWS::EC2::SecurityGroup
