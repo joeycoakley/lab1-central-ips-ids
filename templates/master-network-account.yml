@@ -365,11 +365,15 @@ Resources:
         - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/${rTGW}"
       Principals:
         - !Sub "arn:aws:organizations::${MasterAccountId}:organization/${AWSOrganizationId}"
+      Tags:
+        - Key: Name
+          Value: MyTGWShare
 
 ############################ Transit Gateway Section - End ###################################
 
   rUntrustAtoManagementRoute:
     Type: AWS::EC2::Route
+    DependsOn: rTGWAttachSecurityVPC
     Properties:
       DestinationCidrBlock: 10.255.0.0/16
       TransitGatewayId: !Ref rTGW
@@ -384,6 +388,7 @@ Resources:
 
   rUntrustBtoManagementRoute:
     Type: AWS::EC2::Route
+    DependsOn: rTGWAttachSecurityVPC
     Properties:
       DestinationCidrBlock: 10.255.0.0/16
       TransitGatewayId: !Ref rTGW
@@ -579,6 +584,7 @@ Resources:
 
   rManagementRouteToSecurityVPC:
     Type: AWS::EC2::Route
+    DependsOn: rTGWMgmtAttach
     Properties:
       RouteTableId: !Ref rManagementRT
       DestinationCidrBlock: 10.0.0.0/16
@@ -637,3 +643,12 @@ Resources:
       SecurityGroupIds:
         - !GetAtt rManagementSG.GroupId
       KeyName: !Ref KeyName
+
+Outputs:
+  oIngressENI:
+    Description: ENI id used for ingress routing.
+    Value: !Ref rMiddleboxENI
+
+  oManagementHost:
+    Description: Windows host used for admin access
+    Value: !GetAtt rManagementHost.PublicIp
