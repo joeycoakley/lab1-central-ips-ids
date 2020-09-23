@@ -22,6 +22,10 @@ Parameters:
   LatestAMIforBastion:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-Base'
+  KeyName:
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: Must be the name of an existing EC2 Keypair
+    Default: mna
 
 
 
@@ -96,7 +100,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-IGW
-  AttachGateway:
+
+  rIGWAttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       VpcId: !Ref rVPC
@@ -245,12 +250,9 @@ Resources:
       GatewayId: !Ref rIGW
       RouteTableId: !Ref rUnTrustART
 
-  rUntrustBDefaultRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref rIGW
-      RouteTableId: !Ref rUnTrustBRT
+
+
+############################ Transit Gateway Section - Begin ###################################
 
   rTGW:
     Type: AWS::EC2::TransitGateway
@@ -264,7 +266,9 @@ Resources:
         - Key: Name
           Value: !Sub ${AWS::StackName}-TGW
 
-  rTGWAttach:
+##### TGW Attachment Definition ##############
+
+  rTGWAttachSecurityVPC:
     Type: AWS::EC2::TransitGatewayAttachment
     Properties:
       TransitGatewayId: !Ref rTGW
@@ -272,37 +276,86 @@ Resources:
       SubnetIds:
         - !Ref rTransitSubnetA
         - !Ref rTransitSubnetB
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Ingress/Egress VPC Attachment
+
+  rTGWMgmtAttach:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties:
+      TransitGatewayId: !Ref rTGW
+      VpcId: !Ref rManagementVPC
+      SubnetIds:
+        - !Ref rManagementSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Management VPC Attachment
+
+###### TGW Create Route Tables ##########
 
   rTGWRouteTableOutside:
     Type: AWS::EC2::TransitGatewayRouteTable
     Properties:
       TransitGatewayId: !Ref rTGW
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-TransitGatewayOutside
 
   rTGWRouteTableInside:
     Type: AWS::EC2::TransitGatewayRouteTable
     Properties:
       TransitGatewayId: !Ref rTGW
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-TransitGatewayInside
 
-  rTGWRouteEgress:
+  rTGWRouteTableManagement:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      TransitGatewayId: !Ref rTGW
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-TransitGatewayManagement
+
+####### TGW Static Route Definitions ##########
+
+  rTGWRouteInsideToSecurityVPC:
     Type: AWS::EC2::TransitGatewayRoute
     Properties:
-      TransitGatewayRouteTableId: !Ref rTGWRouteTableOutside
+      TransitGatewayRouteTableId: !Ref rTGWRouteTableInside
       DestinationCidrBlock: 0.0.0.0/0
-      TransitGatewayAttachmentId: !Ref rTGWAttach
+      TransitGatewayAttachmentId: !Ref rTGWAttachSecurityVPC
 
-  rTGWAssociate:
+
+###### TGW Associate Route Tables with Attachments ###########
+
+  rTGWSecurityVPCAssociate:
     Type: AWS::EC2::TransitGatewayRouteTableAssociation
     Properties:
-      TransitGatewayAttachmentId: !Ref rTGWAttach
-      TransitGatewayRouteTableId: !Ref rTGWRouteTableInside
+      TransitGatewayAttachmentId: !Ref rTGWAttachSecurityVPC
+      TransitGatewayRouteTableId: !Ref rTGWRouteTableOutside
+
+  rTGWMgmtAssociate:
+    Type: AWS::EC2::TransitGatewayRouteTableAssociation
+    Properties:
+      TransitGatewayAttachmentId: !Ref rTGWMgmtAttach
+      TransitGatewayRouteTableId: !Ref rTGWRouteTableManagement
+
+####### TGW Route Propagation ##########
 
   rTGWRouteEgressPropagation:
     Type: AWS::EC2::TransitGatewayRouteTablePropagation
     Properties:
       TransitGatewayRouteTableId: !Ref rTGWRouteTableInside
-      TransitGatewayAttachmentId: !Ref rTGWAttach
+      TransitGatewayAttachmentId: !Ref rTGWAttachSecurityVPC
 
-  
+  rTGWMgmtRoutePropagation:
+    Type: AWS::EC2::TransitGatewayRouteTablePropagation
+    Properties:
+      TransitGatewayRouteTableId: !Ref rTGWRouteTableManagement
+      TransitGatewayAttachmentId: !Ref rTGWAttachSecurityVPC
+
+######### TGW RAM Sharing ###########
 
   rTGWShare:
     Type: AWS::RAM::ResourceShare
@@ -312,6 +365,34 @@ Resources:
         - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:transit-gateway/${rTGW}"
       Principals:
         - !Sub "arn:aws:organizations::${MasterAccountId}:organization/${AWSOrganizationId}"
+      Tags:
+        - Key: Name
+          Value: MyTGWShare
+
+############################ Transit Gateway Section - End ###################################
+
+  rUntrustAtoManagementRoute:
+    Type: AWS::EC2::Route
+    DependsOn: rTGWAttachSecurityVPC
+    Properties:
+      DestinationCidrBlock: 10.255.0.0/16
+      TransitGatewayId: !Ref rTGW
+      RouteTableId: !Ref rUnTrustART
+
+  rUntrustBDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref rIGW
+      RouteTableId: !Ref rUnTrustBRT
+
+  rUntrustBtoManagementRoute:
+    Type: AWS::EC2::Route
+    DependsOn: rTGWAttachSecurityVPC
+    Properties:
+      DestinationCidrBlock: 10.255.0.0/16
+      TransitGatewayId: !Ref rTGW
+      RouteTableId: !Ref rUnTrustBRT
 
   rMiddleboxENISG:
     Type: AWS::EC2::SecurityGroup
@@ -489,6 +570,7 @@ Resources:
           Ref: 'AWS::Region'
       VpcId: !Ref rManagementVPC
       CidrBlock: 10.255.255.0/28
+      MapPublicIpOnLaunch: True
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-ManagementSubnet
@@ -499,6 +581,14 @@ Resources:
       RouteTableId: !Ref rManagementRT
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref rManagementIGW
+
+  rManagementRouteToSecurityVPC:
+    Type: AWS::EC2::Route
+    DependsOn: rTGWMgmtAttach
+    Properties:
+      RouteTableId: !Ref rManagementRT
+      DestinationCidrBlock: 10.0.0.0/16
+      TransitGatewayId: !Ref rTGW
 
   rManagementIGW:
     Type: AWS::EC2::InternetGateway
@@ -552,3 +642,13 @@ Resources:
       SubnetId: !Ref rManagementSubnet
       SecurityGroupIds:
         - !GetAtt rManagementSG.GroupId
+      KeyName: !Ref KeyName
+
+Outputs:
+  oIngressENI:
+    Description: ENI id used for ingress routing.
+    Value: !Ref rMiddleboxENI
+
+  oManagementHost:
+    Description: Windows host used for admin access
+    Value: !GetAtt rManagementHost.PublicIp
