@@ -12,3 +12,4 @@ tests:
       pSsmInstanceProfile: $[taskcat_random-string]
       MgmtAllowedIP: 52.95.4.12/32
       KeyName: mna
+      ResourceShareEnabled: "True"

@@ -5,16 +5,22 @@ Description: ---
 Parameters:
   AWSOrganizationId:
     Type: String
-    Description: AWS Organization ID to share the resources with. Obtain from 'aws organizations describe-organization'
+    Description: AWS Organization ID to share the resources with. Obtain from 'aws organizations describe-organization' (Optional)
     Default: o-5jfmdvb7mm
     MinLength: 12
     MaxLength: 12
   MasterAccountId:
     Type: String
-    Description: Account ID of the Control Tower Master
+    Description: Account ID of the master payer account (Optional)
     Default: 663281515832
     MinLength: 12
     MaxLength: 12
+  ResourceShareEnabled:
+    Default: "False"
+    Type: String
+    AllowedValues:
+      - "True"
+      - "False"
   MgmtAllowedIP:
     Type: String
     AllowedPattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$'
@@ -31,7 +37,8 @@ Parameters:
 
 # Mappings: 
 
-# Conditions: 
+Conditions:
+  cEnableRAMSharing: !Equals [ !Ref ResourceShareEnabled, "True" ]
 
 Resources: 
   rVPC:
@@ -359,6 +366,7 @@ Resources:
 
   rTGWShare:
     Type: AWS::RAM::ResourceShare
+    Condition: cEnableRAMSharing
     Properties:
       Name: "Master Network Account TGW"
       ResourceArns:
